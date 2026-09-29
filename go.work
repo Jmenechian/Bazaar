@@ -1,0 +1,9 @@
+go 1.26.8
+
+use (
+	./edge/warehouse
+	./gateway
+	./services/catalog
+	./services/commerce
+	./services/notifications
+)

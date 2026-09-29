@@ -1,0 +1,85 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: bazaar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-bazaar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-bazaar}
+      POSTGRES_DB: ${POSTGRES_DB:-bazaar}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-bazaar} -d ${POSTGRES_DB:-bazaar}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bazaar-net
+
+  mongodb:
+    image: mongo:7.0
+    container_name: bazaar-mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-bazaar}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-bazaar}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-bazaar_catalog}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bazaar-net
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: bazaar-nats
+    restart: unless-stopped
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "4222:4222"   # Client connections
+      - "8222:8222"   # HTTP management & metrics (/varz, /jsz)
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8222/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bazaar-net
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: bazaar-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bazaar-net
+
+volumes:
+  postgres_data:
+  mongo_data:
+  nats_data:
+  redis_data:
+
+networks:
+  bazaar-net:
+    driver: bridge
